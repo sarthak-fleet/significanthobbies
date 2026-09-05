@@ -15,6 +15,8 @@ import { handleMcp } from "./mcp";
 import { getDomainRecords, getLifeEvents, parseReadQuery } from "./reads";
 import { errorResponse, json, preflight, readJson, withCors } from "./http";
 import { handleHub } from "./hub";
+import { handleAgentSkills } from "./agent-skills";
+import { handleAgentSurfaces } from "./agent-surfaces";
 import { pullChanges, pushMutations } from "./sync";
 
 export default {
@@ -37,6 +39,15 @@ async function route(request: Request, env: Env): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/health") {
     return json({ status: "ok", service: "personal-platform" });
   }
+  if (request.method === "GET") {
+    const skillResponse = handleAgentSkills(url);
+    if (skillResponse) return skillResponse;
+  }
+
+  // The apex crawler/agent contract is public and must answer before
+  // authenticate() turns an unrecognised path into a 401.
+  const surfaceResponse = handleAgentSurfaces(request, url);
+  if (surfaceResponse) return surfaceResponse;
 
   if (url.pathname === "/mcp") {
     const user = await authenticateMcp(request, env);
