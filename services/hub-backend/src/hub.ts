@@ -3,7 +3,7 @@ import { getCalorieToday } from "./calorie";
 import { getToday } from "./domains";
 import { getLiveSummary } from "./live";
 
-const PRODUCTS = [
+export const PRODUCTS = [
   {
     id: "live",
     name: "Live",
@@ -54,7 +54,7 @@ const PRODUCTS = [
   },
 ] as const;
 
-const HOME_MARKDOWN = `---
+export const HOME_MARKDOWN = `---
 title: Significant Hobbies
 description: The private Hub for six independently owned personal apps.
 canonical: https://significanthobbies.com/
