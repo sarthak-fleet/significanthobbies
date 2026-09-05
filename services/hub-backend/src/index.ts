@@ -15,6 +15,7 @@ import { handleMcp } from "./mcp";
 import { getDomainRecords, getLifeEvents, parseReadQuery } from "./reads";
 import { errorResponse, json, preflight, readJson, withCors } from "./http";
 import { handleHub } from "./hub";
+import { handleAgentSkills } from "./agent-skills";
 import { pullChanges, pushMutations } from "./sync";
 
 export default {
@@ -36,6 +37,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
   if (request.method === "GET" && url.pathname === "/health") {
     return json({ status: "ok", service: "personal-platform" });
+  }
+  if (request.method === "GET") {
+    const skillResponse = handleAgentSkills(url);
+    if (skillResponse) return skillResponse;
   }
 
   if (url.pathname === "/mcp") {
