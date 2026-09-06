@@ -217,7 +217,7 @@ function page(summaries: Map<string, Record<string, unknown>> | null, origin: st
       <p class="footer-fineprint">Each app owns its interface and immediate data. The Hub shows privacy-safe summaries through documented contracts.</p>
     </footer>
     <script src="https://sassmaker.com/project-strip.js" data-project="significanthobbies" defer></script>
-    <script src="https://sassmaker.com/ai-chat-footer.js" data-name="Significant Hobbies" data-compose="false" defer></script>
+    <script src="https://sassmaker.com/ai-chat-footer.js" data-name="Significant Hobbies" defer></script>
   </body>
 </html>`;
 }

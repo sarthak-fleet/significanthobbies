@@ -37,6 +37,7 @@ public struct PersonalIdentitySession: Codable, Equatable, Sendable {
 public enum PersonalIdentityError: LocalizedError, Equatable, Sendable {
     case missingSession
     case invalidResponse
+    case unavailablePresentationContext
     case server(status: Int, message: String)
     case keychain(status: Int32)
 
@@ -44,6 +45,8 @@ public enum PersonalIdentityError: LocalizedError, Equatable, Sendable {
         switch self {
         case .missingSession: "Sign in again to connect this app."
         case .invalidResponse: "The personal account service returned an invalid response."
+        case .unavailablePresentationContext:
+            "Open the app window and try Google sign-in again."
         case let .server(_, message): message
         case .keychain: "The secure account session could not be accessed."
         }

@@ -9,6 +9,11 @@ import UIKit
 import AppKit
 #endif
 
+public typealias PersonalWebAuthenticator = @MainActor @Sendable (
+    _ url: URL,
+    _ callbackScheme: String
+) async throws -> URL
+
 @MainActor
 @Observable
 public final class PersonalAccountModel: NSObject,
@@ -22,6 +27,9 @@ public final class PersonalAccountModel: NSObject,
     private let callbackScheme: String
     private let identityURL: URL
     private var webSession: ASWebAuthenticationSession?
+    #if os(macOS)
+    private var browserPresentationWindow: NSWindow?
+    #endif
     private var rawAppleNonce: String?
 
     public init(
@@ -49,11 +57,40 @@ public final class PersonalAccountModel: NSObject,
     }
 
     public func connectWithGoogle() async {
+        await completeGoogleConnection {
+            try await self.authenticateInBrowser()
+        }
+    }
+
+    /// Uses a browser session supplied by the presenting view. SwiftUI's
+    /// environment-backed session keeps the authentication presentation tied
+    /// to the window that initiated it instead of rediscovering a Mac window
+    /// from a long-lived account model.
+    public func connectWithGoogle(using authenticate: PersonalWebAuthenticator) async {
+        await completeGoogleConnection {
+            let callbackURL = try await authenticate(
+                Self.googleAuthenticationURL(
+                    identityURL: self.identityURL,
+                    callbackScheme: self.callbackScheme
+                ),
+                self.callbackScheme
+            )
+            return try Self.browserHandoffCode(
+                from: callbackURL,
+                error: nil,
+                expectedScheme: self.callbackScheme
+            )
+        }
+    }
+
+    private func completeGoogleConnection(
+        using authenticationCode: @MainActor () async throws -> String
+    ) async {
         guard !isConnecting else { return }
         isConnecting = true
         defer { isConnecting = false }
         do {
-            let code = try await authenticateInBrowser()
+            let code = try await authenticationCode()
             session = try await identity.exchangeBrowserHandoff(code)
             errorMessage = nil
         } catch let error as ASWebAuthenticationSessionError
@@ -125,21 +162,38 @@ public final class PersonalAccountModel: NSObject,
             .flatMap(\.windows)
             .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
         #elseif os(macOS)
-        return NSApplication.shared.keyWindow ?? NSWindow()
+        return browserPresentationWindow
+            ?? Self.preferredPresentationWindow(
+                keyWindow: NSApplication.shared.keyWindow,
+                mainWindow: NSApplication.shared.mainWindow,
+                visibleWindow: NSApplication.shared.windows.first(where: { $0.isVisible })
+            )
+            ?? ASPresentationAnchor()
         #endif
     }
 
     private func authenticateInBrowser() async throws -> String {
-        var components = URLComponents(
-            url: identityURL.appending(path: "api/native/auth/google/start"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [
-            URLQueryItem(name: "callback", value: "\(callbackScheme)://auth"),
-        ]
-        let url = components.url!
+        let url = Self.googleAuthenticationURL(
+            identityURL: identityURL,
+            callbackScheme: callbackScheme
+        )
         let expectedCallbackScheme = callbackScheme
-        defer { webSession = nil }
+        #if os(macOS)
+        guard let presentationWindow = Self.preferredPresentationWindow(
+            keyWindow: NSApplication.shared.keyWindow,
+            mainWindow: NSApplication.shared.mainWindow,
+            visibleWindow: NSApplication.shared.windows.first(where: { $0.isVisible })
+        ) else {
+            throw PersonalIdentityError.unavailablePresentationContext
+        }
+        browserPresentationWindow = presentationWindow
+        #endif
+        defer {
+            webSession = nil
+            #if os(macOS)
+            browserPresentationWindow = nil
+            #endif
+        }
         return try await withCheckedThrowingContinuation { continuation in
             // AuthenticationServices may invoke this closure on Safari's XPC
             // executor. Keep it nonisolated: resuming a checked continuation is
@@ -172,6 +226,30 @@ public final class PersonalAccountModel: NSObject,
             }
         }
     }
+
+    nonisolated static func googleAuthenticationURL(
+        identityURL: URL,
+        callbackScheme: String
+    ) -> URL {
+        var components = URLComponents(
+            url: identityURL.appending(path: "api/native/auth/google/start"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "callback", value: "\(callbackScheme)://auth"),
+        ]
+        return components.url!
+    }
+
+    #if os(macOS)
+    static func preferredPresentationWindow(
+        keyWindow: NSWindow?,
+        mainWindow: NSWindow?,
+        visibleWindow: NSWindow?
+    ) -> NSWindow? {
+        keyWindow ?? mainWindow ?? visibleWindow
+    }
+    #endif
 
     nonisolated static func browserHandoffCode(
         from callbackURL: URL?,

@@ -148,6 +148,50 @@ struct PersonalIdentityClientTests {
         #expect(identity.userId == "shared-user")
         #expect(await store.load() == "handoff-token")
     }
+
+    #if canImport(AuthenticationServices) && (os(iOS) || os(macOS))
+    @Test("Completes Google sign-in through a view-scoped browser session")
+    @MainActor
+    func viewScopedGoogleAuthenticationCompletesHandoff() async throws {
+        IdentityURLProtocol.handler = { request in
+            if request.url?.path == "/api/native/auth/exchange" {
+                return (
+                    try response(request, status: 200),
+                    Data(#"{"token":"view-scoped-token"}"#.utf8)
+                )
+            }
+            #expect(request.url?.path == "/api/personal-platform/session")
+            return (
+                try response(request, status: 200),
+                Data(#"{"userId":"shared-user","email":"owner@example.com","appleSubject":null}"#.utf8)
+            )
+        }
+        let client = PersonalIdentityClient(
+            baseURL: try #require(URL(string: "https://identity.test")),
+            session: testSession(),
+            tokenStore: MemoryBearerStore()
+        )
+        let account = PersonalAccountModel(
+            identity: client,
+            callbackScheme: "anchor",
+            identityURL: try #require(URL(string: "https://identity.test"))
+        )
+
+        await account.connectWithGoogle { url, callbackScheme in
+            #expect(url.path == "/api/native/auth/google/start")
+            #expect(
+                URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first(where: { $0.name == "callback" })?.value
+                    == "anchor://auth"
+            )
+            #expect(callbackScheme == "anchor")
+            return try #require(URL(string: "anchor://auth?code=one-use-code"))
+        }
+
+        #expect(account.session?.email == "owner@example.com")
+        #expect(account.errorMessage == nil)
+    }
+    #endif
 }
 
 private func testSession() -> URLSession {
