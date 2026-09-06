@@ -8,8 +8,9 @@
  * place, which is the opposite of the intent.
  *
  * These helpers are pure so the redirect contract is unit-testable; the
- * open-redirect validation itself stays in src/app/login/page.tsx, which is the
- * boundary that receives untrusted input.
+ * open-redirect validation itself stayed in the (now-removed, pre-split)
+ * src/app/login/page.tsx, which was the boundary that received untrusted
+ * input.
  */
 
 /** Sign-in URL that returns the visitor to `callbackUrl` once authenticated. */
