@@ -2,6 +2,9 @@
 import Foundation
 import Testing
 @testable import PersonalSyncKit
+#if os(macOS)
+import AppKit
+#endif
 
 @Suite("Personal web sign in")
 struct PersonalWebSignInModelTests {
@@ -38,5 +41,44 @@ struct PersonalWebSignInModelTests {
             )
         }
     }
+
+    #if os(macOS)
+    @Test("Pins Google sign-in to an existing Mac window")
+    @MainActor
+    func selectsExistingMacPresentationWindow() {
+        let keyWindow = NSWindow()
+        let mainWindow = NSWindow()
+        let visibleWindow = NSWindow()
+
+        #expect(
+            PersonalAccountModel.preferredPresentationWindow(
+                keyWindow: keyWindow,
+                mainWindow: mainWindow,
+                visibleWindow: visibleWindow
+            ) === keyWindow
+        )
+        #expect(
+            PersonalAccountModel.preferredPresentationWindow(
+                keyWindow: nil,
+                mainWindow: mainWindow,
+                visibleWindow: visibleWindow
+            ) === mainWindow
+        )
+        #expect(
+            PersonalAccountModel.preferredPresentationWindow(
+                keyWindow: nil,
+                mainWindow: nil,
+                visibleWindow: visibleWindow
+            ) === visibleWindow
+        )
+        #expect(
+            PersonalAccountModel.preferredPresentationWindow(
+                keyWindow: nil,
+                mainWindow: nil,
+                visibleWindow: nil
+            ) == nil
+        )
+    }
+    #endif
 }
 #endif
